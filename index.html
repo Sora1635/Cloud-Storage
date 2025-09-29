@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Облачное Хранилище — Unified</title>
+  <style>
+    :root{
+      --bg:#071028; --card:#0b1220; --muted:#9aa4b2; --accent:#06b6d4; --glass:rgba(255,255,255,0.03);
+      --fg:#e6eef6;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#071025 0%, #07172b 60%);color:var(--fg)}
+    .wrap{max-width:1200px;margin:16px auto;padding:14px}
+    header{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+    .logo{font-weight:700;font-size:18px}
+    .subtitle{color:var(--muted);font-size:13px}
+    .toggle-aside{display:none;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.04);cursor:pointer}
+    .save-status{margin-left:auto;color:var(--muted);font-size:13px}
+
+    .grid{display:grid;grid-template-columns:260px 1fr;gap:14px}
+    aside{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    main{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:12px;box-shadow:0 6px 24px rgba(2,6,23,0.6)}
+
+    .sections{display:flex;flex-direction:column;gap:8px}
+    .section-btn{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;cursor:pointer}
+    .section-btn:hover{background:var(--glass)}
+    .section-btn.active{background:linear-gradient(90deg, rgba(6,182,212,0.12), rgba(6,182,212,0.06));box-shadow:inset 0 0 0 1px rgba(6,182,212,0.06)}
+
+    .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+    .btn{background:transparent;border:1px solid rgba(255,255,255,0.04);padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--fg)}
+    .btn.primary{background:linear-gradient(90deg,var(--accent),#7c3aed);border:none;color:#021024}
+
+    .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+    .breadcrumb{color:var(--muted);font-size:13px}
+    .toolbar .actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+
+    .blocks{display:flex;flex-wrap:wrap;gap:12px}
+    .block{width:220px;background:rgba(255,255,255,0.02);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px}
+    .block .title{font-weight:600;display:flex;justify-content:space-between;align-items:center}
+    .thumb{height:120px;border-radius:6px;background:#061025;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+    .items{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto;padding-right:6px}
+    .item{display:flex;gap:8px;align-items:center;padding:6px;border-radius:6px;cursor:grab;position:relative;background:transparent}
+    .item .meta{font-size:12px;color:var(--muted)}
+
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:linear-gradient(180deg, rgba(2,6,23,0.6), rgba(2,6,23,0.8));z-index:9999}
+    .modal.open{display:flex}
+    .modal .panel{width:96%;max-width:520px;background:#071028;padding:16px;border-radius:12px}
+    .form-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+    input[type=text],select,textarea{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:8px;border-radius:6px;color:var(--fg)}
+    label{font-size:12px;color:var(--muted)}
+
+    .context-menu{position:fixed;z-index:1100;background:var(--card);border:1px solid rgba(255,255,255,0.06);border-radius:6px;padding:6px;display:none;flex-direction:column;gap:6px}
+    .context-menu button{background:transparent;border:none;color:var(--fg);padding:6px 8px;border-radius:4px;cursor:pointer;text-align:left}
+    .context-menu button:hover{background:var(--glass)}
+
+    footer{margin-top:12px;color:var(--muted);font-size:13px;text-align:center;padding:8px}
+
+    /* responsive */
+    @media (max-width: 900px){
+      .grid{grid-template-columns:1fr}
+      aside{display:none} /* hidden by default on small screens */
+      .toggle-aside{display:inline-block}
+      .blocks{justify-content:center}
+      .block{width:92%}
+    }
+
+    /* light theme override (when dark class removed) */
+    body.light{
+      --bg:#f6f7fb; --card:#ffffff; --muted:#6b7280; --accent:#06b6d4; --fg:#0b1220;
+      background: linear-gradient(180deg,#fbfdff 0%, #f6f8fb 60%);
+      color: var(--fg);
+    }
+    body.light .toolbar { background: rgba(255,255,255,0.9); }
+    body.light .btn { color: var(--fg); border-color: rgba(11,18,32,0.06); }
+    body.light .block { background: #fff; box-shadow: 0 6px 18px rgba(2,6,23,0.03); }
+    body.light .thumb { background:#f0f4f8; color:#6b7280 }
+    body.light .context-menu { background:#fff; border-color:#eee }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="logo">Облачное Хранилище</div>
+        <div class="subtitle">Локальная модель — сохраняется в браузере</div>
+      </div>
+
+      <button class="toggle-aside btn" id="toggle-aside">☰</button>
+
+      <div class="save-status">
+        Сохранение: <span id="save-status">—</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <aside id="aside">
+        <div class="sections" role="navigation" aria-label="sections">
+          <div class="section-btn active" data-section="media">Медиа</div>
+          <div class="section-btn" data-section="documents">Документы</div>
+          <div class="section-btn" data-section="links">Ссылки</div>
+        </div>
+
+        <div class="controls">
+          <button class="btn" id="new-collection">Новая папка</button>
+          <button class="btn primary" id="add-item">Добавить</button>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="muted">Коллекции</div>
+          <div id="collections" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+      </aside>
+
+      <main>
+        <div class="toolbar">
+          <div class="breadcrumb">Главная / <span id="current-section">media</span></div>
+          <div class="actions">
+            <button class="btn" id="export">Экспорт</button>
+            <button class="btn" id="import">Импорт</button>
+            <button class="btn" id="clear-cache-btn">🗑 Очистить кэш</button>
+            <button class="btn" id="theme-switch">Сменить тему</button>
+          </div>
+        </div>
+
+        <div id="main-area">
+          <div class="blocks" id="blocks"></div>
+        </div>
+
+        <footer>Подсказка: перетаскивайте элементы между папками. Добавляйте элементы по URL (YouTube/Telegram/документы).</footer>
+      </main>
+    </div>
+  </div>
+
+  <!-- modal -->
+  <div class="modal" id="modal">
+    <div class="panel">
+      <h3 id="modal-title">Добавить / Редактировать элемент</h3>
+      <div class="form-row">
+        <label>Тип</label>
+        <select id="field-type">
+          <option value="video">Видео (YouTube)</option>
+          <option value="image">Изображение (URL)</option>
+          <option value="audio">Аудио (URL)</option>
+          <option value="doc">Документ (URL)</option>
+          <option value="link">Простая ссылка</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Название</label>
+        <input id="field-title" type="text" placeholder="Название элемента">
+      </div>
+      <div class="form-row">
+        <label>URL</label>
+        <input id="field-url" type="text" placeholder="https://...">
+      </div>
+      <div class="form-row">
+        <label>Описание / комментарий</label>
+        <textarea id="field-desc" rows="3" placeholder="Описание или комментарий"></textarea>
+      </div>
+      <div class="form-row">
+        <label>Папка (коллекция)</label>
+        <select id="field-collection"></select>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" id="cancel">Отмена</button>
+        <button class="btn primary" id="save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="context-menu" id="context-menu"></div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const STORAGE_KEY = 'gh_gallery_adv_v3';
+      let state = { sections: { media: [], documents: [], links: [] }, collectionsOrder: [] };
+      let editTarget = null; // { itemId, fromColId } when editing
+
+      const $ = s => document.querySelector(s);
+      const $$ = s => Array.from(document.querySelectorAll(s));
+
+      function uid(prefix='id'){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+
+      function saveState(){
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        $('#save-status').textContent = 'локально • ' + new Date().toLocaleTimeString();
+      }
+
+      function initDefault(){
+        const c1 = uid('col');
+        state = {
+          sections: {
+            media: [{ id: c1, title: 'Мои медиа', items: [] }],
+            documents: [{ id: uid('col'), title: 'Документы', items: [] }],
+            links: [{ id: uid('col'), title: 'Ссылки', items: [] }]
+          },
+          collectionsOrder: [c1]
+        };
+        saveState();
+      }
+
+      function loadState(){
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){ try{ state = JSON.parse(raw); }catch(e){ console.warn('invalid state'); initDefault(); } }
+        else initDefault();
+      }
+
+      // theme logic (save & apply)
+      function applyTheme(theme){
+        if(theme === 'dark'){ document.body.classList.remove('light'); document.body.classList.add('dark'); }
+        else { document.body.classList.remove('dark'); document.body.classList.add('light'); }
+        localStorage.setItem('theme', theme);
+      }
+      // attach theme button
+      $('#theme-switch').addEventListener('click', () => {
+        const cur = localStorage.getItem('theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        applyTheme(cur === 'dark' ? 'light' : 'dark');
+      });
+
+      // sections
+      function getCurrentSection(){ return $('#current-section').textContent || 'media'; }
+      function openSection(name){
+        $('#current-section').textContent = name;
+        $$('[data-section]').forEach(b => b.classList.toggle('active', b.dataset.section === name));
+        renderCollectionsList();
+        renderBlocks();
+        if(window.matchMedia('(max-width:900px)').matches){
+          $('#aside').style.display = 'none';
+        }
+      }
+      $$('[data-section]').forEach(b => b.addEventListener('click', () => openSection(b.dataset.section)));
+      $('#toggle-aside').addEventListener('click', () => {
+        const a = $('#aside'); a.style.display = (a.style.display === 'block' || a.style.display === '') ? 'none' : 'block';
+      });
+
+      // render aside list
+      function renderCollectionsList(){
+        const wrap = $('#collections'); wrap.innerHTML = '';
+        const section = getCurrentSection();
+        const cols = state.sections[section] || [];
+        cols.forEach(col => {
+          const el = document.createElement('div'); el.className = 'section-btn'; el.textContent = col.title;
+          el.onclick = () => openCollection(col.id);
+          wrap.appendChild(el);
+        });
+      }
+      function openCollection(colId){
+        const el = document.querySelector('[data-col-id="'+colId+'"]');
+        if(el) el.scrollIntoView({behavior:'smooth', block:'center'});
+      }
+
+      // render main blocks and items
+      function renderBlocks(){
+        const area = $('#blocks'); area.innerHTML = '';
+        const section = getCurrentSection();
+        const cols = state.sections[section] || [];
+        cols.forEach(col => {
+          const b = document.createElement('div'); b.className = 'block'; b.dataset.colId = col.id;
+          b.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div class="title">${escapeHtml(col.title)}</div><div class="small">${col.items.length} шт</div></div>`;
+          const thumb = document.createElement('div'); thumb.className = 'thumb'; thumb.textContent = 'Превью';
+          b.appendChild(thumb);
+          const itemsWrap = document.createElement('div'); itemsWrap.className = 'items'; itemsWrap.dataset.colId = col.id;
+          col.items.forEach(it => itemsWrap.appendChild(renderItem(it)));
+          b.appendChild(itemsWrap);
+          area.appendChild(b);
+
+          itemsWrap.addEventListener('dragover', ev => { ev.preventDefault(); itemsWrap.style.background='rgba(255,255,255,0.02)'; });
+          itemsWrap.addEventListener('dragleave', ev => { itemsWrap.style.background='transparent'; });
+          itemsWrap.addEventListener('drop', ev => {
+            ev.preventDefault(); itemsWrap.style.background='transparent';
+            const data = ev.dataTransfer.getData('application/json'); if(!data) return;
+            try{ const obj = JSON.parse(data); moveItemToColumn(obj.itemId, obj.fromColId, itemsWrap.dataset.colId); }catch(e){}
+          });
+        });
+        saveState();
+      }
+
+      function renderItem(it){
+        const div = document.createElement('div'); div.className = 'item'; div.draggable = true; div.dataset.itemId = it.id;
+        const thumb = document.createElement('div');
+        thumb.style.width='46px'; thumb.style.height='36px'; thumb.style.borderRadius='6px'; thumb.style.overflow='hidden'; thumb.style.flex='0 0 auto'; thumb.style.background='#061025';
+        if(it.type === 'video'){ const vidId = parseYouTubeId(it.url); if(vidId) thumb.innerHTML = `<img src="https://i.ytimg.com/vi/${vidId}/mqdefault.jpg" style="width:100%;height:100%;object-fit:cover">`; }
+        else if(it.type === 'image'){ thumb.innerHTML = `<img src="${escapeAttr(it.url)}" style="width:100%;height:100%;object-fit:cover">`; }
+        else { thumb.textContent = 'файл'; }
+        const info = document.createElement('div'); info.style.flex = '1';
+        const title = document.createElement('div'); title.textContent = it.title || '(без названия)'; title.style.fontWeight='600';
+        const meta = document.createElement('div'); meta.className = 'meta'; meta.textContent = it.type + (it.desc ? (' • ' + it.desc) : '');
+        info.appendChild(title); info.appendChild(meta);
+        div.appendChild(thumb); div.appendChild(info);
+
+        div.addEventListener('dragstart', ev => {
+          ev.dataTransfer.setData('application/json', JSON.stringify({ itemId: it.id, fromColId: findColIdForItem(it.id) }));
+        });
+        div.addEventListener('dblclick', () => { if(it.url) window.open(it.url, '_blank'); });
+        div.addEventListener('contextmenu', e => { e.preventDefault(); showContextMenu(e.pageX, e.pageY, it); });
+        return div;
+      }
+
+      function escapeHtml(s){ return String(s).replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c])); }
+      function escapeAttr(s){ return String(s).replace(/"/g,'&quot;'); }
+
+      function parseYouTubeId(url){ if(!url) return null; try{ const u = new URL(url); if(u.hostname.includes('youtu.be')) return u.pathname.slice(1); if(u.hostname.includes('youtube.com')) return u.searchParams.get('v') || (u.pathname.includes('/embed/') ? u.pathname.split('/embed/')[1] : null);}catch(e){} return null; }
+
+      function findColIdForItem(itemId){
+        for(const sec of Object.keys(state.sections)){
+          for(const col of state.sections[sec]){
+            if(col.items.find(it => it.id === itemId)) return col.id;
+          }
+        }
+        return null;
+      }
+
+      function findAnyColById(id){
+        for(const s of Object.keys(state.sections)){ const c = state.sections[s].find(x => x.id === id); if(c) return c; }
+        return null;
+      }
+
+      function moveItemToColumn(itemId, fromColId, toColId){
+        if(fromColId === toColId) return;
+        for(const secKey of Object.keys(state.sections)){
+          const colFrom = state.sections[secKey].find(c => c.id === fromColId);
+          if(colFrom){
+            const idx = colFrom.items.findIndex(it => it.id === itemId);
+            if(idx === -1) return;
+            const [it] = colFrom.items.splice(idx,1);
+            const colTo = state.sections[getCurrentSection()].find(c => c.id === toColId) || findAnyColById(toColId);
+            if(colTo){ colTo.items.push(it); saveState(); renderBlocks(); }
+            return;
+          }
+        }
+      }
+
+      // add / update / delete
+      function addCollection(title){
+        const id = uid('col');
+        const section = getCurrentSection();
+        state.sections[section].push({ id, title, items: [] });
+        saveState(); renderCollectionsList(); renderBlocks();
+      }
+
+      function addItem({ type, title, url, desc, collection }){
+        const section = getCurrentSection();
+        const colId = collection || (state.sections[section][0] && state.sections[section][0].id);
+        const col = state.sections[section].find(c => c.id === colId);
+        if(!col) return alert('Коллекция не найдена');
+        col.items.push({ id: uid('item'), title: title || '', url: url || '', type: type || 'link', desc: desc || '' });
+        saveState(); renderBlocks();
+      }
+
+      function updateItemObject(obj){
+        // obj: { id, title, url, type, desc, collection }
+        for(const sec of Object.keys(state.sections)){
+          for(const col of state.sections[sec]){
+            const idx = col.items.findIndex(x => x.id === obj.id);
+            if(idx !== -1){
+              const currentColId = col.id;
+              const newColId = obj.collection || currentColId;
+              if(newColId !== currentColId){
+                const [it] = col.items.splice(idx,1);
+                it.title = obj.title; it.url = obj.url; it.type = obj.type; it.desc = obj.desc;
+                const targetCol = state.sections[getCurrentSection()].find(c => c.id === newColId) || findAnyColById(newColId);
+                if(targetCol){ targetCol.items.push(it); saveState(); renderCollectionsList(); renderBlocks(); return; }
+              } else {
+                col.items[idx] = { id: obj.id, title: obj.title, url: obj.url, type: obj.type, desc: obj.desc };
+                saveState(); renderBlocks(); return;
+              }
+            }
+          }
+        }
+      }
+
+      function deleteItem(id){
+        for(const sec of Object.keys(state.sections)){
+          for(const col of state.sections[sec]){
+            const idx = col.items.findIndex(it => it.id === id);
+            if(idx !== -1){ col.items.splice(idx,1); saveState(); renderBlocks(); return; }
+          }
+        }
+      }
+
+      // modal
+      function openModal(editItem){
+        editTarget = null;
+        const sel = $('#field-collection'); sel.innerHTML = '';
+        (state.sections[getCurrentSection()] || []).forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.title; sel.appendChild(o); });
+
+        if(editItem){
+          const fromColId = findColIdForItem(editItem.id);
+          editTarget = { itemId: editItem.id, fromColId };
+          $('#field-type').value = editItem.type || 'video';
+          $('#field-title').value = editItem.title || '';
+          $('#field-url').value = editItem.url || '';
+          $('#field-desc').value = editItem.desc || '';
+          if(fromColId) $('#field-collection').value = fromColId;
+        } else {
+          $('#field-type').value = 'video';
+          $('#field-title').value = '';
+          $('#field-url').value = '';
+          $('#field-desc').value = '';
+          if(sel.firstChild) sel.value = sel.firstChild.value;
+        }
+        $('#modal').classList.add('open');
+      }
+
+      function closeModal(){ $('#modal').classList.remove('open'); editTarget = null; }
+
+      // context menu
+      const contextMenu = $('#context-menu');
+      contextMenu.addEventListener('click', e => e.stopPropagation()); // don't close immediately when clicking menu
+
+      function showContextMenu(x,y,item){
+        contextMenu.innerHTML = '';
+        const editBtn = document.createElement('button'); editBtn.textContent = 'Редактировать';
+        editBtn.onclick = () => { contextMenu.style.display = 'none'; openModal(item); };
+        const delBtn = document.createElement('button'); delBtn.textContent = 'Удалить';
+        delBtn.onclick = () => { contextMenu.style.display = 'none'; if(confirm('Удалить элемент?')) deleteItem(item.id); };
+        contextMenu.appendChild(editBtn); contextMenu.appendChild(delBtn);
+        // bounds check
+        const winW = window.innerWidth, winH = window.innerHeight;
+        let left = x, top = y;
+        if(left + 200 > winW) left = winW - 200;
+        if(top + 120 > winH) top = winH - 120;
+        contextMenu.style.left = left + 'px'; contextMenu.style.top = top + 'px'; contextMenu.style.display = 'flex';
+      }
+      document.body.addEventListener('click', () => { contextMenu.style.display = 'none'; });
+
+      // attach button handlers
+      $('#new-collection').addEventListener('click', () => {
+        const name = prompt('Название новой папки:','Новая папка');
+        if(name) addCollection(name);
+      });
+
+      $('#add-item').addEventListener('click', () => openModal(null));
+      $('#cancel').addEventListener('click', () => closeModal());
+      $('#save').addEventListener('click', () => {
+        const type = $('#field-type').value;
+        const title = $('#field-title').value.trim();
+        const url = $('#field-url').value.trim();
+        const desc = $('#field-desc').value.trim();
+        const collection = $('#field-collection').value;
+        if(!title && !url){ alert('Нужно название или URL'); return; }
+        if(editTarget){
+          const obj = { id: editTarget.itemId, type, title, url, desc, collection };
+          updateItemObject(obj);
+        } else {
+          addItem({ type, title, url, desc, collection });
+        }
+        closeModal();
+      });
+
+      $('#export').addEventListener('click', () => {
+        const data = JSON.stringify(state, null, 2);
+        const blob = new Blob([data], {type:'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'gh_gallery_export.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      });
+
+      $('#import').addEventListener('click', () => {
+        const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/json';
+        input.onchange = () => {
+          const f = input.files[0]; if(!f) return;
+          const r = new FileReader();
+          r.onload = () => { try{ state = JSON.parse(r.result); saveState(); renderCollectionsList(); renderBlocks(); }catch(e){ alert('Ошибка импорта: некорректный файл'); } };
+          r.readAsText(f);
+        };
+        input.click();
+      });
+
+      $('#clear-cache-btn').addEventListener('click', () => {
+        if(confirm('Точно очистить все данные (коллекции, элементы)?')){
+          localStorage.removeItem(STORAGE_KEY);
+          initDefault();
+          renderCollectionsList(); renderBlocks();
+        }
+      });
+
+      // keyboard
+      document.addEventListener('keydown', e => {
+        if(e.key === 'Escape'){ closeModal(); contextMenu.style.display='none'; }
+      });
+
+      // initial load + theme
+      loadState();
+      // theme: saved or system
+      const savedTheme = localStorage.getItem('theme');
+      if(savedTheme) applyTheme(savedTheme);
+      else {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(prefersDark ? 'dark' : 'light');
+      }
+
+      renderCollectionsList();
+      renderBlocks();
+      openSection('media');
+
+      // expose debug
+      window.__gh_gallery = { state, saveState, loadState, renderBlocks, renderCollectionsList };
+    });
+  </script>
+</body>
+</html>
